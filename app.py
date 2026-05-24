@@ -422,9 +422,9 @@ components.html("""<script>
 # CONSTANTS
 # ══════════════════════════════════════════════════════════════════════════════
 DATA_FILE      = Path(__file__).parent / "Master_Data.csv"
-RULES_FILE     = Path(__file__).parent / " MY BUDGET" / "Mapping_Rules.json"
-LEVELS_FILE    = Path(__file__).parent / " MY BUDGET" / "Categories_Leveling.json"
-OVERRIDES_FILE = Path(__file__).parent / " MY BUDGET" / "Manual_Overrides.json"
+RULES_FILE     = Path(__file__).parent / "MY BUDGET" / "Mapping_Rules.json"
+LEVELS_FILE    = Path(__file__).parent / "MY BUDGET" / "Categories_Leveling.json"
+OVERRIDES_FILE = Path(__file__).parent / "MY BUDGET" / "Manual_Overrides.json"
 if not RULES_FILE.exists():
     RULES_FILE = Path(__file__).parent / "Mapping_Rules.json"
 
