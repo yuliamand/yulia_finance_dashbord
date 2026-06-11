@@ -655,7 +655,8 @@ def load_data():
     df.columns = df.columns.str.strip()
     df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
     if 'Amount_ILS' in df.columns:
-        df['Amount_ILS'] = pd.to_numeric(df['Amount_ILS'].astype(str).str.replace('[^\d\.-]', '', regex=True), errors='coerce').fillna(0)
+        df['Amount_ILS'] = df['Amount_ILS'].astype(str).str.replace(r'[^\d\.-]', '', regex=True)
+        df['Amount_ILS'] = pd.to_numeric(df['Amount_ILS'], errors='coerce').fillna(0)
     return df
     df["Date"] = pd.to_datetime(df["Date"], format="%d/%m/%Y", errors="coerce")
     df["Description"] = df["Description"].fillna("")
