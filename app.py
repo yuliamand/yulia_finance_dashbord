@@ -1592,7 +1592,7 @@ with tab_dashboard:
 
                             # Find matching row in master data
                             mask_row = (
-                                (_df_master_now["Date"] == _orig_date_str)
+                                (pd.to_datetime(_df_master_now["Date"], errors='coerce').dt.strftime('%d/%m/%Y') == _orig_date_str)
                                 & (_df_master_now["Merchant"].astype(str).str.strip() == _orig_merchant)
                                 & (_df_master_now["Amount_ILS"].round(2) == _orig_amount)
                             )
@@ -1631,7 +1631,7 @@ with tab_dashboard:
                             else:
                                 _overrides_now[_key] = {"type": new_type}
                             mask_row = (
-                                (_df_master_now["Date"] == _tdate_str(row["תאריך"]))
+                                (pd.to_datetime(_df_master_now["Date"], errors='coerce').dt.strftime('%d/%m/%Y') == _tdate_str(row["תאריך"]))
                                 & (_df_master_now["Merchant"].astype(str).str.strip() == str(row["בית עסק"]).strip())
                                 & (_df_master_now["Amount_ILS"].round(2) == round(float(row["סכום"]), 2))
                             )
@@ -1770,10 +1770,10 @@ with tab_dashboard:
                                 errors.append(f"לא נמצאו שורות עבור: {m}"); continue
 
                             if scope == "עסקה זו בלבד":
-                                mask_row = mask_merchant & (df_master["Date"] == date_str) & \
+                                mask_row = mask_merchant & (pd.to_datetime(df_master["Date"], errors='coerce').dt.strftime('%d/%m/%Y') == date_str) & \
                                            (df_master["Amount_ILS"].round(2) == amount)
                                 if mask_row.sum() == 0:
-                                    mask_row = mask_merchant & (df_master["Date"] == date_str)
+                                    mask_row = mask_merchant & (pd.to_datetime(df_master["Date"], errors='coerce').dt.strftime('%d/%m/%Y') == date_str)
                                 if mask_row.sum() == 0:
                                     mask_row = df_master.index == df_master[mask_merchant].index[0]
                                 df_master.loc[mask_row, "Category"] = nc
