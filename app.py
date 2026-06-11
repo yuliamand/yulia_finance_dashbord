@@ -648,8 +648,9 @@ def _tdate_str(val):
 @st.cache_data(ttl=60)
 def load_data():
     df = pd.read_csv(DATA_FILE, encoding="utf-8-sig", dtype={"Description": str})
-    df['_orig_index'] = df.index  # <── הוספי את השורה הזו בדיוק!
+    df['_orig_index'] = df.index
     df.columns = df.columns.str.strip()
+    
     if 'Date' in df.columns:
         df['Date'] = pd.to_datetime(df['Date'], dayfirst=True, errors='coerce')
     if 'Amount_ILS' in df.columns:
@@ -659,12 +660,12 @@ def load_data():
         df['Category'] = df['Category'].fillna('לא סווג').astype(str).str.strip()
     if 'Display_Month' in df.columns:
         df['Display_Month'] = df['Display_Month'].astype(str).str.replace('.', '', regex=False).str.strip()
-    return df
-    
-    df["Date"] = pd.to_datetime(df["Date"], format="%d/%m/%Y", errors="coerce")
+        
+    # המשך הלוגיקה החשובה שלך (כעת פייתון יגיע אליה ויריץ אותה בהצלחה)
     df["Description"] = df["Description"].fillna("")
-    df["Amount_ILS"] = pd.to_numeric(df["Amount_ILS"], errors="coerce").fillna(0)
-    df["IsInsurance"] = df["IsInsurance"].astype(str).str.lower().isin(["true", "1", "yes"])
+    if "IsInsurance" in df.columns:
+        df["IsInsurance"] = df["IsInsurance"].astype(str).str.lower().isin(["true", "1", "yes"])
+        
     # Apply manual per-row overrides (survive process_budget.py reruns)
     overrides = load_overrides()
     if overrides:
@@ -682,7 +683,7 @@ def load_data():
                 return row["Category"]
             if isinstance(val, dict):
                 return val.get("category", row["Category"])
-            return val  # backward compat: plain string = category
+            return val
 
         def apply_type_override(row):
             date_str = ""
@@ -696,10 +697,12 @@ def load_data():
             val = overrides.get(key)
             if isinstance(val, dict) and "type" in val:
                 return val["type"]
-            return row["Type"]
+            return row["Type"] if "Type" in row else "הוצאה"
 
         df["Category"] = df.apply(apply_override, axis=1)
-        df["Type"]     = df.apply(apply_type_override, axis=1)
+        if "Type" in df.columns:
+            df["Type"] = df.apply(apply_type_override, axis=1)
+            
     df["MainCategory"] = df["Category"].apply(get_main_category)
     # Remove rows with NaT dates (invalid date entries)
     df = df[df["Date"].notna()]
