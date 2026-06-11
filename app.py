@@ -1520,6 +1520,11 @@ with tab_dashboard:
                         _unsaved_placeholder_bottom_local.empty()
 
                 if save_btn:
+                    # טעינת קובץ המקור פעם אחת מרוכזת לעדכון בזיכרון
+                    _df_master_now = pd.read_csv(DATA_FILE, encoding="utf-8-sig")
+                    _overrides_now = load_overrides()
+                    was_changed = False
+
                     # ── Delete checked rows — ask confirmation ────────────────────────
                     to_delete = edited[edited["מחק"] == True]
                     if not to_delete.empty:
@@ -1554,18 +1559,15 @@ with tab_dashboard:
                     desc_changed = edited["תיאור"] != df_display_reset["תיאור"]
 
                     if (date_changed | merchant_changed | amount_changed | desc_changed).any():
-                        _df_master_now = pd.read_csv(DATA_FILE, encoding="utf-8-sig")
+                        was_changed = True
                         for idx, row in edited.iterrows():
                             if idx >= len(df_display_reset):
                                 continue
                             _date_str = _tdate_str(row["תאריך"])
-                            _orig_date_str = _tdate_str(df_display_reset.at[idx, "תאריך"])
                             _merchant = str(row["בית עסק"]).strip()
-                            _orig_merchant = str(df_display_reset.at[idx, "בית עסק"]).strip()
                             _amount = round(float(row["סכום"]), 2)
-                            _orig_amount = round(float(df_display_reset.at[idx, "סכום"]), 2)
 
-                            # Find matching row using the absolute original index from excel
+                            # שימוש באינדקס המקורי המוחלט מהאקסל
                             actual_idx = df_display_reset.at[idx, "_orig_index"] if "_orig_index" in df_display_reset.columns else idx
                             mask_row = _df_master_now.index == actual_idx
 
@@ -1582,26 +1584,10 @@ with tab_dashboard:
                                     _df_master_now["Description"] = _df_master_now["Description"].astype(str).fillna("")
                                     _df_master_now["Description"] = _df_master_now["Description"].where(~mask_row, _new_desc).replace("nan", "")
 
-                        # כתיבת הקובץ המעודכן לדיסק (מחוץ ללולאת ה-for, מיד בסיומה)
-                        _df_master_now.to_csv(DATA_FILE, index=False, encoding="utf-8-sig")
-                        
-                        # כפיית שבירת ה-Cache ועדכון מיידי של המשתנה שמזין את כל הדשבורד
-                        if 'load_data' in globals() and hasattr(load_data, 'clear'):
-                            load_data.clear()
-                        
-                        # טעינה מחדש של הנתונים לתוך הזיכרון הכללי של האפליקציה כדי שהטבלה תתעדכן
-                        st.session_state["df_all"] = pd.read_csv(DATA_FILE, encoding="utf-8-sig")
-                        
-                        st.success("✅ כל השדות עודכנו ונשמרו בהצלחה!")
-                        st.rerun(scope="app")
-
-                   # ── Type changes ─────────────────────────────────────────────────
+                    # ── Type changes ─────────────────────────────────────────────────
                     type_changed = edited["סוג"] != df_display_reset["סוג"]
                     if type_changed.any():
-                        _overrides_now = load_overrides()
-                        _df_master_now = pd.read_csv(DATA_FILE, encoding="utf-8-sig")
-                        
-                        # ניקוי זמני של עמודת הסכומים בקובץ המקור כדי למנוע בעיות טיפוסים
+                        was_changed = True
                         clean_orig_amounts = _df_master_now["Amount_ILS"].astype(str).str.replace(r'[^\d\.-]', '', regex=True)
                         clean_orig_amounts = pd.to_numeric(clean_orig_amounts, errors='coerce').fillna(0)
                         
@@ -1609,15 +1595,13 @@ with tab_dashboard:
                             new_type = row["סוג"]
                             if new_type not in ("הוצאה", "הכנסה", "זיכוי"):
                                 continue
-                            
-                            # מציאת השורה המקורית בקובץ כדי לדעת מה היה הסימן של הסכום (חיובי או שלילי)
+                                
                             actual_idx = df_display_reset.at[idx, "_orig_index"] if "_orig_index" in df_display_reset.columns else None
                             
                             if actual_idx is not None and actual_idx in _df_master_now.index:
                                 orig_amount = clean_orig_amounts.loc[actual_idx]
                                 _df_master_now.loc[actual_idx, "Type"] = new_type
                             else:
-                                # גיבוי אם אין אינדקס ישיר
                                 mask_row = (
                                     (_df_master_now["Merchant"].astype(str).str.strip().str.lower() == str(row["בית עסק"]).strip().str.lower())
                                     & (clean_orig_amounts.abs().round(2) == round(abs(float(row["סכום"])), 2))
@@ -1630,7 +1614,6 @@ with tab_dashboard:
                                     if new_type == "הוצאה" and orig_amount > 0:
                                         orig_amount = -orig_amount
                             
-                            # יצירת המפתח ל-Overrides עם הסכום המקורי והמדויק (כולל המינוס אם יש)
                             _key = override_key(_tdate_str(row["תאריך"]), str(row["בית עסק"]), orig_amount)
                             
                             existing = _overrides_now.get(_key)
@@ -1640,19 +1623,18 @@ with tab_dashboard:
                                 _overrides_now[_key] = {"category": existing, "type": new_type}
                             else:
                                 _overrides_now[_key] = {"type": new_type}
-                                
-                        # שמירה פיזית של שני הקבצים
+
+                    # ── שמירה ורענון מרוכזים (רק בסיום כל הבדיקות) ──────────────────────
+                    if was_changed:
                         _df_master_now.to_csv(DATA_FILE, index=False, encoding="utf-8-sig")
                         save_overrides(_overrides_now)
                         
-                        # ניקוי זיכרון זמני וכפיית טעינה מחדש של הדשבורד
                         if 'load_data' in globals() and hasattr(load_data, 'clear'):
                             load_data.clear()
                         
-                        st.success("סוג העסקה עודכן ונשמר בהצלחה!")
-                        st.rerun()
-                            
-            
+                        st.session_state["df_all"] = pd.read_csv(DATA_FILE, encoding="utf-8-sig")
+                        st.success("✅ השינויים נשמרו וסונכרנו בהצלחה!")
+                        st.rerun(scope="app")
 
                     # ── Category changes ──────────────────────────────────────────────
                     cat_changed = (
