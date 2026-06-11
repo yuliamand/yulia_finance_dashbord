@@ -1603,8 +1603,8 @@ with tab_dashboard:
                             else:
                                 _overrides_now[_key] = {"type": new_type}
                             mask_row = (
-                                (_df_master_now["Merchant"].astype(str).str.strip() == str(row["בית עסק"]).strip())
-                                & (_df_master_now["Amount_ILS"].round(2) == round(float(row["סכום"]), 2))
+                                (_df_master_now["Merchant"].astype(str).str.strip().str.lower() == str(row["בית עסק"]).strip().str.lower())
+                                & (_df_master_now["Amount_ILS"].astype(float).abs().round(2) == round(abs(float(row["סכום"])), 2))
                             )
                             
                             _df_master_now.loc[mask_row, "Type"] = new_type
