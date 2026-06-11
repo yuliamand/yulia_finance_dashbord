@@ -734,15 +734,35 @@ df_all = load_data()
 
 # Sorted ascending (for range logic), descending for UI display
 # Exclude months with < 10 rows from CHARTS/AVERAGES (stray installment rows, artifacts)
+# Sorted ascending (for range logic), descending for UI display
+# Exclude months with < 10 rows from CHARTS/AVERAGES (stray installment rows, artifacts)
 _month_counts = df_all.groupby("Display_Month").size()
 _valid_months = set(_month_counts[_month_counts >= 10].index)
-all_months_asc  = sorted(_valid_months, key=month_sort_key)
-all_months_desc = list(reversed(all_months_asc))  # latest first in dropdown (charts/averages)
 
-# All months (no count filter) — for the transaction table so manually added rows always appear
-_all_months_set     = set(df_all["Display_Month"].dropna().unique())
-all_months_asc_all  = sorted(_all_months_set, key=month_sort_key)
-all_months_desc_all = list(reversed(all_months_asc_all))
+def format_to_short_year(month_str):
+    """ הופך 'ינואר 2026' או 'ינואר 26.' ל-> 'ינואר 26' """
+    if not month_str:
+        return ""
+    parts = str(month_str).replace('.', '').strip().split()
+    if len(parts) == 2:
+        month_name = parts[0]  # ינואר, פברואר...
+        year = parts[1]        # 2026 או 26
+        short_year = year[-2:] # תמיד לוקח רק את 2 הספרות האחרונות
+        return f"{month_name} {short_year}"
+    return str(month_str)
+
+# 1. בניית הרשימה הממוינת הכרונולוגית המקורית (לצורך חישובים וגרפים)
+all_months_asc = sorted([str(m).strip() for m in _valid_months if m and str(m).strip()], key=month_sort_key)
+
+# 2. הרשימה הנפתחת העליונה: מעוצבת (שנה קצרה), ממוינת מהחדש לישן
+all_months_desc = [format_to_short_year(m) for m in reversed(all_months_asc)]
+
+# 3. כל החודשים לטובת הרשימה התחתונה (פירוט עסקאות)
+_all_months_set = set(df_all["Display_Month"].dropna().unique())
+all_months_asc_all = sorted([str(m).strip() for m in _all_months_set if m and str(m).strip()], key=month_sort_key)
+
+# 4. הרשימה הנפתחת התחתונה: מעוצבת (שנה קצרה), ממוינת מהחדש לישן
+all_months_desc_all = [format_to_short_year(m) for m in reversed(all_months_asc_all)]
 
 
 
