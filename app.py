@@ -1565,8 +1565,9 @@ with tab_dashboard:
                             _amount = round(float(row["סכום"]), 2)
                             _orig_amount = round(float(df_display_reset.at[idx, "סכום"]), 2)
 
-                            # Find matching row in master data
-                            mask_row = _df_master_now.index == idx
+                            # Find matching row using the absolute original index from excel
+                            actual_idx = df_display_reset.at[idx, "_orig_index"] if "_orig_index" in df_display_reset.columns else idx
+                            mask_row = _df_master_now.index == actual_idx
 
                             if mask_row.any():
                                 if date_changed.iloc[idx]:
