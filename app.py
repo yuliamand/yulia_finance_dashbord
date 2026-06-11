@@ -1577,9 +1577,8 @@ with tab_dashboard:
                                     _df_master_now.loc[mask_row, "Amount_ILS"] = _amount
                                 if desc_changed.iloc[idx]:
                                     _new_desc = str(row["תיאור"]).strip()
-                                    _df_master_now["Description"] = _df_master_now["Description"].astype(str)
-                                    _df_master_now.loc[mask_row, "Description"] = _new_desc
-                                    _df_master_now["Description"] = _df_master_now["Description"].replace("nan", "")
+                                    _df_master_now["Description"] = _df_master_now["Description"].astype(str).fillna("")
+                                    _df_master_now["Description"] = _df_master_now["Description"].where(~mask_row, _new_desc).replace("nan", "")
 
                         _df_master_now.to_csv(DATA_FILE, index=False, encoding="utf-8-sig")
                         load_data.clear()
