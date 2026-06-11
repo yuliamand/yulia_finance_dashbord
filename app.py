@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-app.py — Yulia's Personal Finance Dashboard
 Run with:  streamlit run app.py
 """
 
@@ -1577,6 +1576,7 @@ with tab_dashboard:
                                 if amount_changed.iloc[idx]:
                                     _df_master_now.loc[mask_row, "Amount_ILS"] = _amount
                                 if desc_changed.iloc[idx]:
+                                    _df_master_now["Description"] = _df_master_now["Description"].astype(str)
                                     _df_master_now.loc[mask_row, "Description"] = str(row["תיאור"]).strip()
 
                         _df_master_now.to_csv(DATA_FILE, index=False, encoding="utf-8-sig")
