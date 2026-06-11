@@ -1741,7 +1741,9 @@ with tab_dashboard:
                                 errors.append(f"לא נמצאו שורות עבור: {m}"); continue
 
                            if scope == "עסקה זו בלבד":
-                                mask_row = df_master.index == idx
+                                mask_row = mask_merchant & (df_master["Amount_ILS"].round(2) == round(float(amount), 2))
+                                if mask_row.sum() == 0:
+                                    mask_row = df_master.index == df_master[mask_merchant].index[0]
                                 df_master.loc[mask_row, "Category"] = nc
                                 for _, row in df_master[mask_row].iterrows():
                                     key = override_key(row["Date"], str(row["Merchant"]), row["Amount_ILS"])
