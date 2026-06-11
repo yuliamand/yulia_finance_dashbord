@@ -1594,7 +1594,7 @@ with tab_dashboard:
                             mask_row = (
                                 (_df_master_now["Date"] == _orig_date_str)
                                 & (_df_master_now["Merchant"].astype(str).str.strip() == _orig_merchant)
-                                & (_df_master_now["Amount_ILS"].apply(lambda x: round(float(x), 2)) == _orig_amount)
+                                & (_df_master_now["Amount_ILS"].round(2) == _orig_amount)
                             )
 
                             if mask_row.any():
