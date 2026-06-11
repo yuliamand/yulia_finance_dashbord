@@ -1633,7 +1633,7 @@ with tab_dashboard:
                             mask_row = (
                                 (_df_master_now["Date"] == _tdate_str(row["תאריך"]))
                                 & (_df_master_now["Merchant"].astype(str).str.strip() == str(row["בית עסק"]).strip())
-                                & (_df_master_now["Amount_ILS"].apply(lambda x: round(float(x), 2)) == round(float(row["סכום"]), 2))
+                                & (_df_master_now["Amount_ILS"].round(2) == round(float(row["סכום"]), 2))
                             )
                             _df_master_now.loc[mask_row, "Type"] = new_type
                         _df_master_now.to_csv(DATA_FILE, index=False, encoding="utf-8-sig")
