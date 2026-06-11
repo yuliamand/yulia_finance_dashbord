@@ -1763,22 +1763,36 @@ with tab_dashboard:
                             clean_master_amounts = pd.to_numeric(clean_master_amounts, errors='coerce').fillna(0)
                             
                             mask_merchant = df_master["Merchant"].astype(str).str.strip() == m
-
-                            # ── תרחיש 1: עסקה זו בלבד (נעילה כירורגית מבוססת אינדקס מקורי) ──
+# ── תרחיש 1: עסקה זו בלבד (נעילה חסינה לפי ערך מוחלט ותאריך) ──
                             if scope == "עסקה זו בלבד":
+                                mask_row = None
+                                
+                                # דרך א': ניסיון נעילה לפי אינדקס מוחלט מהאקסל (הכי בטוח)
                                 if actual_idx is not None and actual_idx in df_master.index:
                                     mask_row = df_master.index == actual_idx
-                                else:
-                                    mask_row = mask_merchant & (clean_master_amounts.abs().round(2) == round(abs(float(chg["amount"])), 2))
+                                
+                                # דרך ב': אם אינדקס חסר - איתור כירורגי לפי תאריך, שם וסכום נקי (בסיוע ערך מוחלט)
+                                if mask_row is None or mask_row.sum() == 0:
+                                    mask_row = (
+                                        mask_merchant & 
+                                        (df_master["Date"] == date_str) & 
+                                        (clean_master_amounts.abs().round(2) == round(abs(float(chg["amount"])), 2))
+                                    )
+                                    
+                                    # אם עדיין קיימות כמה עסקאות זהות לחלוטין באותו היום, נעדכן רק את הראשונה מביניהן
                                     if mask_row.sum() > 1:
                                         mask_row = df_master.index == df_master[mask_row].index[0]
-                                
-                                df_master.loc[mask_row, "Category"] = nc
-                                for idx_row, row_master in df_master[mask_row].iterrows():
-                                    key = override_key(row_master["Date"], str(row_master["Merchant"]), row_master["Amount_ILS"])
-                                    existing = overrides.get(key)
-                                    overrides[key] = {**(existing if isinstance(existing, dict) else {}), "category": nc} if isinstance(existing, dict) else nc
-                                summary.append(f"✓ {m} (עסקה ספציפית) → {nc}")
+
+                                # החלת השינוי בפועל בתוך ה-CSV וה-JSON
+                                if mask_row is not None and mask_row.any():
+                                    df_master.loc[mask_row, "Category"] = nc
+                                    for idx_row, row_master in df_master[mask_row].iterrows():
+                                        key = override_key(row_master["Date"], str(row_master["Merchant"]), row_master["Amount_ILS"])
+                                        existing = overrides.get(key)
+                                        overrides[key] = {**(existing if isinstance(existing, dict) else {}), "category": nc} if isinstance(existing, dict) else nc
+                                    summary.append(f"✓ {m} (עסקה ספציפית) → {nc}")
+                                else:
+                                    errors.append(f"לא הצלחנו לאתר את העסקה המדויקת של {m} בקובץ הנתונים")
 
                             # ── תרחיש 2: כל עסקאות העבר ───────────────────────────────────
                             elif scope == "כל העסקאות של בית עסק זה בעבר":
