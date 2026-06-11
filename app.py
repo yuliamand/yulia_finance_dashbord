@@ -1611,11 +1611,23 @@ with tab_dashboard:
                             actual_idx = df_display_reset.at[idx, "_orig_index"]
                             _df_master_now.loc[_df_master_now.index == actual_idx, "Type"] = new_type
                                 
+                        # 1. כתיבת הנתונים המעודכנים פיזית לקובץ ה-CSV
                         _df_master_now.to_csv(DATA_FILE, index=False, encoding="utf-8-sig")
                         save_overrides(_overrides_now)
-                        load_data.clear()
-                        st.success("סוג עסקה עודכן")
-                        st.rerun(scope="app")
+                        
+                        # 2. שבירת ה-Cache: כפיית טעינה מחדש של הנתונים לתוך הזיכרון הריצה של הדשבורד
+                        if 'load_data' in globals() and hasattr(load_data, 'clear'):
+                            load_data.clear()
+                        
+                        # 3. עדכון ישיר של המשתנים שמזינים את הטבלה על המסך
+                        st.session_state["df_all"] = pd.read_csv(DATA_FILE, encoding="utf-8-sig")
+                        if "data_editor_key" in st.session_state:
+                            # איפוס המצב הפנימי של הטבלה במסך כדי למחוק את היסטוריית העריכות שנשמרו
+                            st.session_state["data_editor_key"] = {} 
+                        
+                        # 4. הודעת הצלחה ורענון סופי
+                        st.success("השינויים נשמרו בהצלחה והנתונים חודשו!")
+                        st.rerun()
                             
             
 
