@@ -646,7 +646,7 @@ def _tdate_str(val):
 
 @st.cache_data(ttl=60)
 def load_data():
-   df = pd.read_csv(DATA_FILE, encoding="utf-8-sig", dtype={"Description": str})
+    df = pd.read_csv(DATA_FILE, encoding="utf-8-sig", dtype={"Description": str})
     if 'Date' not in df.columns:
         df = df.reset_index()
         if 'Display_Month' not in df.columns and df.shape[0] > 0:
