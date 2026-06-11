@@ -1585,15 +1585,18 @@ with tab_dashboard:
                         st.success("✅ עסקאות עודכנו בהצלחה")
                         st.rerun(scope="app")
 
-                    # ── Type changes ─────────────────────────────────────────────────
+                   # ── Type changes ─────────────────────────────────────────────────
                     type_changed = edited["סוג"] != df_display_reset["סוג"]
                     if type_changed.any():
                         _overrides_now = load_overrides()
                         _df_master_now = pd.read_csv(DATA_FILE, encoding="utf-8-sig")
+                        
                         for idx, row in edited[type_changed].iterrows():
                             new_type = row["סוג"]
                             if new_type not in ("הוצאה", "הכנסה", "זיכוי"):
                                 continue
+                                
+                            # עדכון ה-Overrides json לפי מפתח ייחודי
                             _key = override_key(_tdate_str(row["תאריך"]), str(row["בית עסק"]), row["סכום"])
                             existing = _overrides_now.get(_key)
                             if isinstance(existing, dict):
@@ -1602,17 +1605,26 @@ with tab_dashboard:
                                 _overrides_now[_key] = {"category": existing, "type": new_type}
                             else:
                                 _overrides_now[_key] = {"type": new_type}
-                            mask_row = (
-                                (_df_master_now["Merchant"].astype(str).str.strip().str.lower() == str(row["בית עסק"]).strip().str.lower())
-                                & (_df_master_now["Amount_ILS"].astype(float).abs().round(2) == round(abs(float(row["סכום"])), 2))
-                            )
                             
-                            _df_master_now.loc[mask_row, "Type"] = new_type
+                            # מציאת האינדקס האמיתי בקובץ ה-CSV המקור לפי האינדקס של df_display_reset
+                            if "_orig_index" in df_display_reset.columns:
+                                actual_idx = df_display_reset.at[idx, "_orig_index"]
+                                _df_master_now.loc[_df_master_now.index == actual_idx, "Type"] = new_type
+                            else:
+                                # גיבוי חסין לפי עסק וסכום אם אין עמודת אינדקס
+                                mask_row = (
+                                    (_df_master_now["Merchant"].astype(str).str.strip().str.lower() == str(row["בית עסק"]).strip().str.lower())
+                                    & (_df_master_now["Amount_ILS"].astype(float).abs().round(2) == round(abs(float(row["סכום"])), 2))
+                                )
+                                _df_master_now.loc[mask_row, "Type"] = new_type
+                                
                         _df_master_now.to_csv(DATA_FILE, index=False, encoding="utf-8-sig")
                         save_overrides(_overrides_now)
                         load_data.clear()
                         st.success("סוג עסקה עודכן")
                         st.rerun(scope="app")
+                            
+            
 
                     # ── Category changes ──────────────────────────────────────────────
                     cat_changed = (
