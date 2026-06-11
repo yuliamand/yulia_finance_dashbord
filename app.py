@@ -1629,8 +1629,7 @@ with tab_dashboard:
                         st.session_state["df_all"] = load_data()
                         st.success("✅ השינויים נשמרו וסונכרנו בהצלחה!")
                         st.rerun(scope="app")
-
-                    # ── Category changes ──────────────────────────────────────────────
+# ── Category changes ──────────────────────────────────────────────
                     cat_changed = (
                         (edited["קטגוריה"] != df_display_reset["קטגוריה"])
                         & ~edited["קטגוריה"].apply(is_separator)
@@ -1641,15 +1640,19 @@ with tab_dashboard:
                             merchant = row["בית עסק"]
                             new_cat  = row["קטגוריה"]
                             if merchant and new_cat and not is_separator(new_cat):
+                                # שליפת מספר השורה המקורי והמוחלט מהאקסל
+                                actual_idx = df_display_reset.at[idx, "_orig_index"] if "_orig_index" in df_display_reset.columns else idx
                                 all_count = int((df_all["Merchant"] == merchant).sum())
                                 pending_changes.append({
                                     "merchant": merchant, "new_cat": new_cat,
                                     "old_cat":  df_display_reset.at[idx, "קטגוריה"],
                                     "all_count": all_count,
                                     "date":     _tdate_str(row["תאריך"]), "amount": row["סכום"],
+                                    "actual_idx": actual_idx  # שמירת האינדקס לנעילה הכירורגית
                                 })
                         st.session_state["pending_cat_changes"] = pending_changes
-                    elif not type_changed.any():
+                        st.rerun()
+                    elif not type_changed.any() and not was_changed:
                         st.info("לא זוהו שינויים")
 
                 # ── Delete confirmation dialog ────────────────────────────────────────
@@ -1688,7 +1691,9 @@ with tab_dashboard:
                         _df_master.to_csv(DATA_FILE, index=False, encoding="utf-8-sig")
                         save_overrides(_overrides)
                         del st.session_state["pending_delete_rows"]
-                        load_data.clear()
+                        if 'load_data' in globals() and hasattr(load_data, 'clear'):
+                            load_data.clear()
+                        st.session_state["df_all"] = load_data()
                         st.success(f"נמחקו {len(rows_to_del)} עסקאות")
                         st.rerun(scope="app")
 
@@ -1733,6 +1738,7 @@ with tab_dashboard:
                     if confirm_btn:
                         rules     = load_rules()
                         df_master = pd.read_csv(DATA_FILE, encoding="utf-8-sig")
+                        overrides = load_overrides()
                         summary   = []
                         errors    = []
 
@@ -1744,75 +1750,75 @@ with tab_dashboard:
                                 return str(ddmmyyyy)
 
                         df_master["_sort_date"] = df_master["Date"].apply(to_sortable)
-                        overrides = load_overrides()
 
                         for chg_i, chg in enumerate(pending):
                             m  = str(chg["merchant"]).strip()
                             nc = chg["new_cat"]
                             scope = scope_choices.get(chg_i, SCOPE_OPTS[0])
                             date_str = chg["date"]
-                            amount = round(float(chg["amount"]), 2)
                             sortable_date = to_sortable(date_str)
+                            actual_idx = chg.get("actual_idx")
+                            
+                            clean_master_amounts = df_master["Amount_ILS"].astype(str).str.replace(r'[^\d\.-]', '', regex=True)
+                            clean_master_amounts = pd.to_numeric(clean_master_amounts, errors='coerce').fillna(0)
+                            
                             mask_merchant = df_master["Merchant"].astype(str).str.strip() == m
-                            if mask_merchant.sum() == 0:
-                                errors.append(f"לא נמצאו שורות עבור {m}")
-                                continue
-                                if scope == "עסקה זו בלבד":
-                                    mask_row = mask_merchant & (df_master["Amount_ILS"].round(2) == round(float(amount), 2))
-                                    if mask_row.sum() == 0:
-                                        mask_row = df_master.index == df_master[mask_merchant].index[0]
-                                    df_master.loc[mask_row, "Category"] = nc
-                                    for _, row in df_master[mask_row].iterrows():
-                                        key = override_key(row["Date"], str(row["Merchant"]), row["Amount_ILS"])
-                                        existing = overrides.get(key)
-                                        overrides[key] = {**(existing if isinstance(existing, dict) else {}), "category": nc} if isinstance(existing, dict) else nc
-                                    summary.append(f"✓ {m}: {int(mask_row.sum())} עסקה → {nc}")    
-                            elif scope == "כל העסקאות של בית עסק זה בעבר":
-                                    mask_row = mask_merchant & (df_master["_sort_date"] <= sortable_date)
-                                    df_master.loc[mask_row, "Category"] = nc
-                                    for _, row in df_master[mask_row].iterrows():
-                                        key = override_key(row["Date"], str(row["Merchant"]), row["Amount_ILS"])
-                                        existing = overrides.get(key)
-                                        overrides[key] = {**(existing if isinstance(existing, dict) else {}), "category": nc} if isinstance(existing, dict) else nc
-                                    summary.append(f"✓ {m}: {int(mask_row.sum())} עסקאות עבר → {nc}")
-            
 
+                            # ── תרחיש 1: עסקה זו בלבד (נעילה כירורגית מבוססת אינדקס מקורי) ──
+                            if scope == "עסקה זו בלבד":
+                                if actual_idx is not None and actual_idx in df_master.index:
+                                    mask_row = df_master.index == actual_idx
+                                else:
+                                    mask_row = mask_merchant & (clean_master_amounts.abs().round(2) == round(abs(float(chg["amount"])), 2))
+                                    if mask_row.sum() > 1:
+                                        mask_row = df_master.index == df_master[mask_row].index[0]
+                                
+                                df_master.loc[mask_row, "Category"] = nc
+                                for idx_row, row_master in df_master[mask_row].iterrows():
+                                    key = override_key(row_master["Date"], str(row_master["Merchant"]), row_master["Amount_ILS"])
+                                    existing = overrides.get(key)
+                                    overrides[key] = {**(existing if isinstance(existing, dict) else {}), "category": nc} if isinstance(existing, dict) else nc
+                                summary.append(f"✓ {m} (עסקה ספציפית) → {nc}")
+
+                            # ── תרחיש 2: כל עסקאות העבר ───────────────────────────────────
+                            elif scope == "כל העסקאות של בית עסק זה בעבר":
+                                mask_row = mask_merchant & (df_master["_sort_date"] <= sortable_date)
+                                df_master.loc[mask_row, "Category"] = nc
+                                for idx_row, row_master in df_master[mask_row].iterrows():
+                                    key = override_key(row_master["Date"], str(row_master["Merchant"]), row_master["Amount_ILS"])
+                                    existing = overrides.get(key)
+                                    overrides[key] = {**(existing if isinstance(existing, dict) else {}), "category": nc} if isinstance(existing, dict) else nc
+                                summary.append(f"✓ {m} ({int(mask_row.sum())} עסקאות עבר) → {nc}")
+
+                            # ── תרחיש 3: כל עסקאות העתיד ──────────────────────────────────
                             elif scope == "כל העסקאות של בית עסק זה בעתיד":
                                 mask_row = mask_merchant & (df_master["_sort_date"] >= sortable_date)
                                 df_master.loc[mask_row, "Category"] = nc
                                 rules[m] = nc
-                                summary.append(f"✓ {m}: {int(mask_row.sum())} עסקאות עתיד → {nc}")
+                                summary.append(f"✓ {m} ({int(mask_row.sum())} עסקאות עתיד) → {nc}")
 
+                            # ── תרחיש 4: עבר ועתיד (כל העסקאות) ───────────────────────────
                             else:
                                 df_master.loc[mask_merchant, "Category"] = nc
                                 rules[m] = nc
-                                summary.append(f"✓ {m}: {int(mask_merchant.sum())} עסקאות → {nc}")
+                                summary.append(f"✓ {m} (כל העסקאות) → {nc}")
 
+                        # שמירה ורענון מרוכזים ללא קריסות גרפים
                         df_master = df_master.drop(columns=["_sort_date"])
                         df_master.to_csv(DATA_FILE, index=False, encoding="utf-8-sig")
                         save_rules(rules)
                         save_overrides(overrides)
-                        load_data.clear()
+                        
+                        if 'load_data' in globals() and hasattr(load_data, 'clear'):
+                            load_data.clear()
+                            
+                        st.session_state["df_all"] = load_data()
                         del st.session_state["pending_cat_changes"]
+                        
                         if summary:
-                            st.markdown(
-                                f"""<div id='success-msg-{id(summary)}' style='background-color:#90EE90;padding:12px 16px;border-radius:8px;margin:8px 0;
-                                color:#000;font-weight:700;font-size:1.05rem;border-left:4px solid #228B22;'>
-                                ✅ נשמר! {" | ".join(summary)}
-                                </div>
-                                <script>
-                                setTimeout(function() {{
-                                    var el = document.getElementById('success-msg-{id(summary)}');
-                                    if (el) {{
-                                        el.style.transition = 'opacity 0.5s ease-out';
-                                        el.style.opacity = '0';
-                                        setTimeout(function() {{ el.remove(); }}, 500);
-                                    }}
-                                }}, 3000);
-                                </script>""",
-                                unsafe_allow_html=True
-                            )
-                        if errors:  st.error("שגיאות: " + " | ".join(errors))
+                            st.success(f"נשמר בהצלחה! {' | '.join(summary)}")
+                        if errors:  
+                            st.error("שגיאות: " + " | ".join(errors))
                         st.rerun(scope="app")
 
             # ── Add transaction (INSIDE fragment — prevents scroll-jump on type change) ──
