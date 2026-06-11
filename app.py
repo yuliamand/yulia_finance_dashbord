@@ -653,6 +653,13 @@ def load_data():
         df = df.sort_values(by='Date', ascending=False).reset_index(drop=True)
     if 'Display_Month' in df.columns:
         df['Display_Month'] = df['Display_Month'].astype(str).str.replace('.', '', regex=False).str.strip()
+        replacements = {
+            "ינו": "ינואר", "פבר": "פברואר", "מרצ": "מרץ", "אפר": "אפריל",
+            "מאי": "מאי", "יונ": "יוני", "יול": "יולי", "אוג": "אוגוסט",
+            "ספט": "ספטמבר", "אוק": "אוקטובר", "נוב": "נובמבר", "דצמ": "דצמבר"
+        }
+        for short_m, full_m in replacements.items():
+            df['Display_Month'] = df['Display_Month'].str.replace(rf'^{short_m}\b', full_m, regex=True)
     if 'Amount_ILS' in df.columns:
         df['Amount_ILS'] = df['Amount_ILS'].astype(str).str.replace(r'[^\d\.-]', '', regex=True)
         df['Amount_ILS'] = pd.to_numeric(df['Amount_ILS'], errors='coerce').fillna(0)
