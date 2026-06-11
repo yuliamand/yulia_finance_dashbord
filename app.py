@@ -628,6 +628,8 @@ def load_overrides():
 
 
 def save_overrides(overrides):
+    import os
+    os.makedirs(os.path.dirname(str(OVERRIDES_FILE)), exist_ok=True)
     with open(OVERRIDES_FILE, "w", encoding="utf-8") as f:
         json.dump(overrides, f, ensure_ascii=False, indent=4)
 
