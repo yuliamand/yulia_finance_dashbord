@@ -2001,19 +2001,29 @@ with tab_averages:
     # ── Helper functions (defined once, used inside fragment) ──────────────────
     INCOME_CATS_SHOW = ["מזונות", "הכנסות עסק", "קצבת ילדים", "הכנסה אחרת"]
 
-    def _avg_rows(df_sub, n_months, df_credits=None):
+   def _avg_rows(df_sub, n_months, df_credits=None):
         """Return list of (main_cat, avg, [(subcat, avg)...]) sorted by avg desc."""
         # חישוב ממוצע תקין - לחלק בכל החודשים בטווח, לא רק בחודשים עם נתונים
         total_months_in_range = max(n_months, 1)  # מספר כל החודשים בטווח
+
+        # חליפת מגן: וידאו שעמודת הקטגוריה הראשית קיימת בתתי-הטבלאות למניעת KeyError
+        if df_sub is not None and not df_sub.empty and "MainCategory" not in df_sub.columns:
+            df_sub["MainCategory"] = df_sub["Category"].apply(get_main_category)
+            
+        if df_credits is not None and not df_credits.empty:
+            if "MainCategory" not in df_credits.columns:
+                df_credits["MainCategory"] = df_credits["Category"].apply(get_main_category)
 
         cred_by_cat = {}
         if df_credits is not None and not df_credits.empty:
             for cat, cgrp in df_credits.groupby("Category"):
                 cred_by_cat[cat] = cgrp["Amount_ILS"].sum()
+                
         cred_by_main = {}
         if df_credits is not None and not df_credits.empty:
             for mc, cgrp in df_credits.groupby("MainCategory"):
                 cred_by_main[mc] = cgrp["Amount_ILS"].sum()
+                
         result = []
         for main_cat, grp in df_sub.groupby("MainCategory"):
             gross_main = grp["Amount_ILS"].sum()
@@ -2029,12 +2039,10 @@ with tab_averages:
                     if net_sub != 0:
                         subcats.append((cat, net_sub / total_months_in_range))
             # Sort subcats by Categories_Leveling.json order
-            # (JSON already has insurance subcats last for בריאות וטיפוח, so we just use the standard order)
             subcats.sort(key=lambda x: _SUB_CAT_ORDER.get(x[0], 999))
             result.append((main_cat, main_avg, subcats))
 
         # Separate main categories into regular and special (end categories)
-        # Special categories that should appear at the end in this order: תרומות, משיכה מכספומט, לא מסווג
         SPECIAL_CATS_ORDER = ["תרומות", "משיכה מכספומט", "לא מסווג"]
         regular_cats = []
         special_cats = []
