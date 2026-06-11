@@ -1611,10 +1611,14 @@ with tab_dashboard:
                                 actual_idx = df_display_reset.at[idx, "_orig_index"]
                                 _df_master_now.loc[_df_master_now.index == actual_idx, "Type"] = new_type
                             else:
-                                # גיבוי חסין לפי עסק וסכום אם אין עמודת אינדקס
+                                # ניקוי חסין של עמודת הסכום בקובץ הגולמי מטקסטים וסימני מטבע
+                                clean_amounts = _df_master_now["Amount_ILS"].astype(str).str.replace(r'[^\d\.-]', '', regex=True)
+                                clean_amounts = pd.to_numeric(clean_amounts, errors='coerce').fillna(0)
+                                
+                                # חיפוש השורה לפי בית עסק וסכום נקי (ערך מוחלט)
                                 mask_row = (
                                     (_df_master_now["Merchant"].astype(str).str.strip().str.lower() == str(row["בית עסק"]).strip().str.lower())
-                                    & (_df_master_now["Amount_ILS"].astype(float).abs().round(2) == round(abs(float(row["סכום"])), 2))
+                                    & (clean_amounts.abs().round(2) == round(abs(float(row["סכום"])), 2))
                                 )
                                 _df_master_now.loc[mask_row, "Type"] = new_type
                                 
