@@ -1582,9 +1582,17 @@ with tab_dashboard:
                                     _df_master_now["Description"] = _df_master_now["Description"].astype(str).fillna("")
                                     _df_master_now["Description"] = _df_master_now["Description"].where(~mask_row, _new_desc).replace("nan", "")
 
+                        # כתיבת הקובץ המעודכן לדיסק (מחוץ ללולאת ה-for, מיד בסיומה)
                         _df_master_now.to_csv(DATA_FILE, index=False, encoding="utf-8-sig")
-                        load_data.clear()
-                        st.success("✅ עסקאות עודכנו בהצלחה")
+                        
+                        # כפיית שבירת ה-Cache ועדכון מיידי של המשתנה שמזין את כל הדשבורד
+                        if 'load_data' in globals() and hasattr(load_data, 'clear'):
+                            load_data.clear()
+                        
+                        # טעינה מחדש של הנתונים לתוך הזיכרון הכללי של האפליקציה כדי שהטבלה תתעדכן
+                        st.session_state["df_all"] = pd.read_csv(DATA_FILE, encoding="utf-8-sig")
+                        
+                        st.success("✅ כל השדות עודכנו ונשמרו בהצלחה!")
                         st.rerun(scope="app")
 
                    # ── Type changes ─────────────────────────────────────────────────
