@@ -648,6 +648,7 @@ def _tdate_str(val):
 @st.cache_data(ttl=60)
 def load_data():
     df = pd.read_csv(DATA_FILE, encoding="utf-8-sig", dtype={"Description": str})
+    df['_orig_index'] = df.index  # <── הוספי את השורה הזו בדיוק!
     df.columns = df.columns.str.strip()
     if 'Date' in df.columns:
         df['Date'] = pd.to_datetime(df['Date'], dayfirst=True, errors='coerce')
@@ -1606,21 +1607,9 @@ with tab_dashboard:
                             else:
                                 _overrides_now[_key] = {"type": new_type}
                             
-                            # מציאת האינדקס האמיתי בקובץ ה-CSV המקור לפי האינדקס של df_display_reset
-                            if "_orig_index" in df_display_reset.columns:
-                                actual_idx = df_display_reset.at[idx, "_orig_index"]
-                                _df_master_now.loc[_df_master_now.index == actual_idx, "Type"] = new_type
-                            else:
-                                # ניקוי חסין של עמודת הסכום בקובץ הגולמי מטקסטים וסימני מטבע
-                                clean_amounts = _df_master_now["Amount_ILS"].astype(str).str.replace(r'[^\d\.-]', '', regex=True)
-                                clean_amounts = pd.to_numeric(clean_amounts, errors='coerce').fillna(0)
-                                
-                                # חיפוש השורה לפי בית עסק וסכום נקי (ערך מוחלט)
-                                mask_row = (
-                                    (_df_master_now["Merchant"].astype(str).str.strip().str.lower() == str(row["בית עסק"]).strip().str.lower())
-                                    & (clean_amounts.abs().round(2) == round(abs(float(row["סכום"])), 2))
-                                )
-                                _df_master_now.loc[mask_row, "Type"] = new_type
+                            # שליפת האינדקס האמיתי והמרה מדויקת ללא ניחושים
+                            actual_idx = df_display_reset.at[idx, "_orig_index"]
+                            _df_master_now.loc[_df_master_now.index == actual_idx, "Type"] = new_type
                                 
                         _df_master_now.to_csv(DATA_FILE, index=False, encoding="utf-8-sig")
                         save_overrides(_overrides_now)
