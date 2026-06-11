@@ -1592,13 +1592,38 @@ with tab_dashboard:
                         _overrides_now = load_overrides()
                         _df_master_now = pd.read_csv(DATA_FILE, encoding="utf-8-sig")
                         
+                        # ניקוי זמני של עמודת הסכומים בקובץ המקור כדי למנוע בעיות טיפוסים
+                        clean_orig_amounts = _df_master_now["Amount_ILS"].astype(str).str.replace(r'[^\d\.-]', '', regex=True)
+                        clean_orig_amounts = pd.to_numeric(clean_orig_amounts, errors='coerce').fillna(0)
+                        
                         for idx, row in edited[type_changed].iterrows():
                             new_type = row["סוג"]
                             if new_type not in ("הוצאה", "הכנסה", "זיכוי"):
                                 continue
-                                
-                            # עדכון ה-Overrides json לפי מפתח ייחודי
-                            _key = override_key(_tdate_str(row["תאריך"]), str(row["בית עסק"]), row["סכום"])
+                            
+                            # מציאת השורה המקורית בקובץ כדי לדעת מה היה הסימן של הסכום (חיובי או שלילי)
+                            actual_idx = df_display_reset.at[idx, "_orig_index"] if "_orig_index" in df_display_reset.columns else None
+                            
+                            if actual_idx is not None and actual_idx in _df_master_now.index:
+                                orig_amount = clean_orig_amounts.loc[actual_idx]
+                                _df_master_now.loc[actual_idx, "Type"] = new_type
+                            else:
+                                # גיבוי אם אין אינדקס ישיר
+                                mask_row = (
+                                    (_df_master_now["Merchant"].astype(str).str.strip().str.lower() == str(row["בית עסק"]).strip().str.lower())
+                                    & (clean_orig_amounts.abs().round(2) == round(abs(float(row["סכום"])), 2))
+                                )
+                                if mask_row.any():
+                                    orig_amount = clean_orig_amounts[mask_row].iloc[0]
+                                    _df_master_now.loc[mask_row, "Type"] = new_type
+                                else:
+                                    orig_amount = float(row["סכום"])
+                                    if new_type == "הוצאה" and orig_amount > 0:
+                                        orig_amount = -orig_amount
+                            
+                            # יצירת המפתח ל-Overrides עם הסכום המקורי והמדויק (כולל המינוס אם יש)
+                            _key = override_key(_tdate_str(row["תאריך"]), str(row["בית עסק"]), orig_amount)
+                            
                             existing = _overrides_now.get(_key)
                             if isinstance(existing, dict):
                                 existing["type"] = new_type
@@ -1606,27 +1631,16 @@ with tab_dashboard:
                                 _overrides_now[_key] = {"category": existing, "type": new_type}
                             else:
                                 _overrides_now[_key] = {"type": new_type}
-                            
-                            # שליפת האינדקס האמיתי והמרה מדויקת ללא ניחושים
-                            actual_idx = df_display_reset.at[idx, "_orig_index"]
-                            _df_master_now.loc[_df_master_now.index == actual_idx, "Type"] = new_type
                                 
-                        # 1. כתיבת הנתונים המעודכנים פיזית לקובץ ה-CSV
+                        # שמירה פיזית של שני הקבצים
                         _df_master_now.to_csv(DATA_FILE, index=False, encoding="utf-8-sig")
                         save_overrides(_overrides_now)
                         
-                        # 2. שבירת ה-Cache: כפיית טעינה מחדש של הנתונים לתוך הזיכרון הריצה של הדשבורד
+                        # ניקוי זיכרון זמני וכפיית טעינה מחדש של הדשבורד
                         if 'load_data' in globals() and hasattr(load_data, 'clear'):
                             load_data.clear()
                         
-                        # 3. עדכון ישיר של המשתנים שמזינים את הטבלה על המסך
-                        st.session_state["df_all"] = pd.read_csv(DATA_FILE, encoding="utf-8-sig")
-                        if "data_editor_key" in st.session_state:
-                            # איפוס המצב הפנימי של הטבלה במסך כדי למחוק את היסטוריית העריכות שנשמרו
-                            st.session_state["data_editor_key"] = {} 
-                        
-                        # 4. הודעת הצלחה ורענון סופי
-                        st.success("השינויים נשמרו בהצלחה והנתונים חודשו!")
+                        st.success("סוג העסקה עודכן ונשמר בהצלחה!")
                         st.rerun()
                             
             
