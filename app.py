@@ -646,7 +646,7 @@ def _tdate_str(val):
 
 @st.cache_data(ttl=60)
 def load_data():
-    df = pd.read_csv(DATA_FILE, encoding="utf-8-sig", dtype={"Description": str})
+   df = pd.read_csv(DATA_FILE, encoding="utf-8-sig", dtype={"Description": str})
     if 'Date' not in df.columns:
         df = df.reset_index()
         if 'Display_Month' not in df.columns and df.shape[0] > 0:
@@ -654,6 +654,8 @@ def load_data():
             df = df.drop(df.index[0]).reset_index(drop=True)
     df.columns = df.columns.str.strip()
     df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
+    if 'Amount_ILS' in df.columns:
+        df['Amount_ILS'] = pd.to_numeric(df['Amount_ILS'].astype(str).str.replace('[^\d\.-]', '', regex=True), errors='coerce').fillna(0)
     return df
     df["Date"] = pd.to_datetime(df["Date"], format="%d/%m/%Y", errors="coerce")
     df["Description"] = df["Description"].fillna("")
