@@ -1771,7 +1771,7 @@ with tab_dashboard:
 
                             if scope == "עסקה זו בלבד":
                                 mask_row = mask_merchant & (df_master["Date"] == date_str) & \
-                                           (df_master["Amount_ILS"].apply(lambda x: round(float(x), 2)) == amount)
+                                           (df_master["Amount_ILS"].round(2) == amount)
                                 if mask_row.sum() == 0:
                                     mask_row = mask_merchant & (df_master["Date"] == date_str)
                                 if mask_row.sum() == 0:
