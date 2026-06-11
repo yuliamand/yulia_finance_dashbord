@@ -650,6 +650,9 @@ def load_data():
     df.columns = df.columns.str.strip()
     if 'Date' in df.columns:
         df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
+        df = df.sort_values(by='Date', ascending=False).reset_index(drop=True)
+    if 'Display_Month' in df.columns:
+        df['Display_Month'] = df['Display_Month'].astype(str).str.replace('.', '', regex=False).str.strip()
     if 'Amount_ILS' in df.columns:
         df['Amount_ILS'] = df['Amount_ILS'].astype(str).str.replace(r'[^\d\.-]', '', regex=True)
         df['Amount_ILS'] = pd.to_numeric(df['Amount_ILS'], errors='coerce').fillna(0)
