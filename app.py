@@ -1536,23 +1536,21 @@ with tab_dashboard:
 
                     # ── Field changes: Date, Merchant, Amount, Description ────────────
                     def _calc_display_month(date_str):
-                        """Calculate Display_Month from date."""
+                        """Calculate Display_Month from date safely."""
                         try:
-                            dt = pd.to_datetime(date_str)
-                            day = dt.day
-                            month = dt.month
-                            year = dt.year
+                            dt = pd.to_datetime(date_str, dayfirst=True, errors='coerce')
+                            if pd.isna(dt):
+                                return ""
+                            day, month, year = dt.day, dt.month, dt.year
                             if day >= 10:
                                 next_month = month + 1 if month < 12 else 1
                                 next_year = year if month < 12 else year + 1
                             else:
                                 next_month = month
                                 next_year = year
-                            heb_month_num = next_month
                             heb_months_map = {1:"ינואר", 2:"פברואר", 3:"מרץ", 4:"אפריל", 5:"מאי", 6:"יוני",
                                              7:"יולי", 8:"אוגוסט", 9:"ספטמבר", 10:"אוקטובר", 11:"נובמבר", 12:"דצמבר"}
-                            year_short = str(next_year)[-2:]
-                            return f"{heb_months_map.get(heb_month_num, '?')} {year_short}"
+                            return f"{heb_months_map.get(next_month, '?')} {str(next_year)[-2:]}"
                         except:
                             return ""
 
@@ -1566,26 +1564,29 @@ with tab_dashboard:
                         for idx, row in edited.iterrows():
                             if idx >= len(df_display_reset):
                                 continue
-                            _date_str = _tdate_str(row["תאריך"])
-                            _merchant = str(row["בית עסק"]).strip()
-                            _amount = round(float(row["סכום"]), 2)
-
-                            # שימוש באינדקס המקורי המוחלט מהאקסל
+                            
+                            # שליפת אינדקס מקורי מוחלט למניעת התנגשויות של מנוע Arrow
                             actual_idx = df_display_reset.at[idx, "_orig_index"] if "_orig_index" in df_display_reset.columns else idx
-                            mask_row = _df_master_now.index == actual_idx
-
-                            if mask_row.any():
+                            
+                            if actual_idx in _df_master_now.index:
+                                mask_row = _df_master_now.index == actual_idx
+                                
                                 if date_changed.iloc[idx]:
+                                    _date_str = _tdate_str(row["תאריך"])
                                     _df_master_now.loc[mask_row, "Date"] = _date_str
-                                    _df_master_now.loc[mask_row, "Display_Month"] = _calc_display_month(_date_str)
+                                    if "Display_Month" in _df_master_now.columns:
+                                        _df_master_now.loc[mask_row, "Display_Month"] = _calc_display_month(_date_str)
+                                
                                 if merchant_changed.iloc[idx]:
-                                    _df_master_now.loc[mask_row, "Merchant"] = _merchant
+                                    _df_master_now.loc[mask_row, "Merchant"] = str(row["בית עסק"]).strip()
+                                
                                 if amount_changed.iloc[idx]:
-                                    _df_master_now.loc[mask_row, "Amount_ILS"] = _amount
+                                    _df_master_now.loc[mask_row, "Amount_ILS"] = round(float(row["סכום"]), 2)
+                                
                                 if desc_changed.iloc[idx]:
-                                    _new_desc = str(row["תיאור"]).strip()
+                                    # פתרון מחיקת תיאור: המרה לטקסט וניקוי ערכים חסרים (NaN)
                                     _df_master_now["Description"] = _df_master_now["Description"].astype(str).fillna("")
-                                    _df_master_now["Description"] = _df_master_now["Description"].where(~mask_row, _new_desc).replace("nan", "")
+                                    _df_master_now.loc[mask_row, "Description"] = str(row["תיאור"]).strip()
 
                     # ── Type changes ─────────────────────────────────────────────────
                     type_changed = edited["סוג"] != df_display_reset["סוג"]
@@ -1604,28 +1605,16 @@ with tab_dashboard:
                             if actual_idx is not None and actual_idx in _df_master_now.index:
                                 orig_amount = clean_orig_amounts.loc[actual_idx]
                                 _df_master_now.loc[actual_idx, "Type"] = new_type
-                            else:
-                                mask_row = (
-                                    (_df_master_now["Merchant"].astype(str).str.strip().str.lower() == str(row["בית עסק"]).strip().str.lower())
-                                    & (clean_orig_amounts.abs().round(2) == round(abs(float(row["סכום"])), 2))
-                                )
-                                if mask_row.any():
-                                    orig_amount = clean_orig_amounts[mask_row].iloc[0]
-                                    _df_master_now.loc[mask_row, "Type"] = new_type
+                                
+                                # יצירת מפתח נקי ומדויק ל-JSON ללא תלות ברווחים או אותיות גדולות
+                                _key = override_key(_tdate_str(row["תאריך"]), str(row["בית עסק"]), orig_amount)
+                                existing = _overrides_now.get(_key)
+                                if isinstance(existing, dict):
+                                    existing["type"] = new_type
+                                elif existing is not None:
+                                    _overrides_now[_key] = {"category": existing, "type": new_type}
                                 else:
-                                    orig_amount = float(row["סכום"])
-                                    if new_type == "הוצאה" and orig_amount > 0:
-                                        orig_amount = -orig_amount
-                            
-                            _key = override_key(_tdate_str(row["תאריך"]), str(row["בית עסק"]), orig_amount)
-                            
-                            existing = _overrides_now.get(_key)
-                            if isinstance(existing, dict):
-                                existing["type"] = new_type
-                            elif existing is not None:
-                                _overrides_now[_key] = {"category": existing, "type": new_type}
-                            else:
-                                _overrides_now[_key] = {"type": new_type}
+                                    _overrides_now[_key] = {"type": new_type}
 
                     # ── שמירה ורענון מרוכזים (רק בסיום כל הבדיקות) ──────────────────────
                     if was_changed:
