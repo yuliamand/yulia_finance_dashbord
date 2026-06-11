@@ -651,6 +651,7 @@ def load_data():
     
     if 'Date' in df.columns:
         df['Date'] = pd.to_datetime(df['Date'], dayfirst=True, errors='coerce')
+        # מיון של כל הטבלה מהתאריך החדש ביותר לישן ביותר
         df = df.sort_values(by='Date', ascending=False).reset_index(drop=True)
         
     if 'Amount_ILS' in df.columns:
@@ -660,37 +661,29 @@ def load_data():
     if 'Category' in df.columns:
         df['Category'] = df['Category'].fillna('לא סווג').astype(str).str.strip()
         
-    if 'Display_Month' in df.columns:
-        df['Display_Month'] = df['Display_Month'].astype(str).str.replace('.', '', regex=False).str.strip()
+    if 'Date' in df.columns and df['Date'].notna().any():
+        # יצירה מחדש של עמודת הדצמ/ינו לפורמט מלא וממוין על בסיס התאריך התקין
+        heb_months_map = {
+            1: "ינואר", 2: "פברואר", 3: "מרץ", 4: "אפריל", 5: "מאי", 6: "יוני",
+            7: "יולי", 8: "אוגוסט", 9: "ספטמבר", 10: "אוקטובר", 11: "נובמבר", 12: "דצמבר"
+        }
+        
+        def generate_full_month(dt):
+            if pd.isna(dt):
+                return "לא ידוע"
+            day, month, year = dt.day, dt.month, dt.year
+            # לוגיקת הסטת החודש המקורית מהקוד שלך (מעבר חודש ב-10 לחודש)
+            if day >= 10:
+                next_month = month + 1 if month < 12 else 1
+                next_year = year if month < 12 else year + 1
+            else:
+                next_month = month
+                next_year = year
+            return f"{heb_months_map.get(next_month, '?')} {str(next_year)[-2:]}"
+            
+        df['Display_Month'] = df['Date'].apply(generate_full_month)
         
     return df
-
-def get_clean_months_for_select(df):
-    if 'Display_Month' not in df.columns or 'Date' not in df.columns:
-        return []
-    
-    replacements = {
-        "ינו": "ינואר", "פבר": "פברואר", "מרצ": "מרץ", "אפר": "אפריל",
-        "מאי": "מאי", "יונ": "יוני", "יול": "יולי", "אוג": "אוגוסט",
-        "ספט": "ספטמבר", "אוק": "אוקטובר", "נוב": "נובמבר", "דצמ": "דצמבר"
-    }
-    
-    df_sorted = df.dropna(subset=['Date', 'Display_Month']).sort_values(by='Date', ascending=False)
-    unique_months = []
-    seen = set()
-    
-    for _, row in df_sorted.iterrows():
-        orig_m = row['Display_Month']
-        if orig_m not in seen:
-            seen.add(orig_m)
-            clean_m = orig_m
-            for short_m, full_m in replacements.items():
-                if clean_m.startswith(short_m):
-                    clean_m = clean_m.replace(short_m, full_m, 1)
-                    break
-            unique_months.append((clean_m, orig_m))
-            
-    return unique_months
     df["Date"] = pd.to_datetime(df["Date"], format="%d/%m/%Y", errors="coerce")
     df["Description"] = df["Description"].fillna("")
     df["Amount_ILS"] = pd.to_numeric(df["Amount_ILS"], errors="coerce").fillna(0)
