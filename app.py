@@ -496,19 +496,9 @@ _SUB_CAT_ORDER = _build_sub_cat_order()
 # ══════════════════════════════════════════════════════════════════════════════
 
 def month_sort_key(display_month):
-    """ פונקציית מיון חסינה שיודעת לטפל גם בשנה מקוצרת '26' וגם מלאה '2026' """
-    if not display_month or pd.isna(display_month):
-        return (0, 0)
     parts = str(display_month).strip().split()
     if len(parts) == 2:
-        try:
-            year_val = int(parts[1])
-            # אם השנה היא בפורמט של 2 ספרות (למשל 26), נהפוך אותה פנימית ל-2026 לצורך המיון
-            if year_val < 100:
-                year_val += 2000
-            return (year_val, HEB_MONTH_ORDER.get(parts[0], 0))
-        except (ValueError, TypeError):
-            return (0, 0)
+        return (int(parts[1]), HEB_MONTH_ORDER.get(parts[0], 0))
     return (0, 0)
 
 
@@ -2001,226 +1991,61 @@ with tab_averages:
     # ── Helper functions (defined once, used inside fragment) ──────────────────
     INCOME_CATS_SHOW = ["מזונות", "הכנסות עסק", "קצבת ילדים", "הכנסה אחרת"]
 
-   def _avg_rows(df_sub, n_months, df_credits=None):
-
+    def _avg_rows(df_sub, n_months, df_credits=None):
         """Return list of (main_cat, avg, [(subcat, avg)...]) sorted by avg desc."""
-
         # חישוב ממוצע תקין - לחלק בכל החודשים בטווח, לא רק בחודשים עם נתונים
-
         total_months_in_range = max(n_months, 1)  # מספר כל החודשים בטווח
 
-
-
         cred_by_cat = {}
-
         if df_credits is not None and not df_credits.empty:
-
             for cat, cgrp in df_credits.groupby("Category"):
-
                 cred_by_cat[cat] = cgrp["Amount_ILS"].sum()
-
         cred_by_main = {}
-
         if df_credits is not None and not df_credits.empty:
-
             for mc, cgrp in df_credits.groupby("MainCategory"):
-
                 cred_by_main[mc] = cgrp["Amount_ILS"].sum()
-
         result = []
-
         for main_cat, grp in df_sub.groupby("MainCategory"):
-
             gross_main = grp["Amount_ILS"].sum()
-
             net_main   = gross_main - cred_by_main.get(main_cat, 0)
-
             if net_main <= 0:
-
                 continue
-
             main_avg = net_main / total_months_in_range
-
             subcats = []
-
             for cat, sub_grp in grp.groupby("Category"):
-
                 if cat != main_cat:
-
                     net_sub = sub_grp["Amount_ILS"].sum() - cred_by_cat.get(cat, 0)
-
                     # Show all subcategories with any value (positive or negative - credits)
-
                     if net_sub != 0:
-
                         subcats.append((cat, net_sub / total_months_in_range))
-
             # Sort subcats by Categories_Leveling.json order
-
             # (JSON already has insurance subcats last for בריאות וטיפוח, so we just use the standard order)
-
             subcats.sort(key=lambda x: _SUB_CAT_ORDER.get(x[0], 999))
-
             result.append((main_cat, main_avg, subcats))
 
-
-
         # Separate main categories into regular and special (end categories)
-
         # Special categories that should appear at the end in this order: תרומות, משיכה מכספומט, לא מסווג
-
         SPECIAL_CATS_ORDER = ["תרומות", "משיכה מכספומט", "לא מסווג"]
-
         regular_cats = []
-
         special_cats = []
 
-
-
         for item in result:
-
             main_cat = item[0]
-
             if main_cat in SPECIAL_CATS_ORDER:
-
                 special_cats.append((SPECIAL_CATS_ORDER.index(main_cat), item))
-
             else:
-
                 regular_cats.append(item)
 
-
-
         # Sort regular categories by JSON order
-
         regular_cats.sort(key=lambda x: _MAIN_CAT_ORDER.get(x[0], 999))
 
-
-
         # Sort special categories by their defined order
-
         special_cats.sort(key=lambda x: x[0])
 
-
-
         # Combine: regular categories first, then special categories at the end
-
         result = regular_cats + [item for _, item in special_cats]
-
         return result
-       
-def _avg_rows(df_sub, n_months, df_credits=None):
-    """Return list of (main_cat, avg, [(subcat, avg)...]) sorted by avg desc."""
-    total_months_in_range = max(n_months, 1)
 
-    # חליפת מגן: וידאו שעמודת הקטגוריה הראשית קיימת בתתי-הטבלאות למניעת KeyError
-    if df_sub is not None and not df_sub.empty and "MainCategory" not in df_sub.columns:
-        df_sub["MainCategory"] = df_sub["Category"].apply(get_main_category)
-        
-    if df_credits is not None and not df_credits.empty:
-        if "MainCategory" not in df_credits.columns:
-            df_credits["MainCategory"] = df_credits["Category"].apply(get_main_category)
-
-    cred_by_cat = {}
-    if df_credits is not None and not df_credits.empty:
-        for cat, cgrp in df_credits.groupby("Category"):
-            cred_by_cat[cat] = cgrp["Amount_ILS"].sum()
-            
-    cred_by_main = {}
-    if df_credits is not None and not df_credits.empty:
-        for mc, cgrp in df_credits.groupby("MainCategory"):
-            cred_by_main[mc] = cgrp["Amount_ILS"].sum()
-            
-    result = []
-    for main_cat, grp in df_sub.groupby("MainCategory"):
-        gross_main = grp["Amount_ILS"].sum()
-        net_main   = gross_main - cred_by_main.get(main_cat, 0)
-        if net_main <= 0:
-            continue
-        main_avg = net_main / total_months_in_range
-        subcats = []
-        for cat, sub_grp in grp.groupby("Category"):
-            if cat != main_cat:
-                net_sub = sub_grp["Amount_ILS"].sum() - cred_by_cat.get(cat, 0)
-                if net_sub != 0:
-                    subcats.append((cat, net_sub / total_months_in_range))
-        subcats.sort(key=lambda x: _SUB_CAT_ORDER.get(x[0], 999))
-        result.append((main_cat, main_avg, subcats))
-
-    # Separate main categories into regular and special (end categories)
-    SPECIAL_CATS_ORDER = ["תרומות", "משיכה מכספומט", "לא מסווג"]
-    regular_cats = []
-    special_cats = []
-
-    for item in result:
-        main_cat = item[0]
-        if main_cat in SPECIAL_CATS_ORDER:
-            special_cats.append((SPECIAL_CATS_ORDER.index(main_cat), item))
-        else:
-            regular_cats.append(item)
-
-    regular_cats.sort(key=lambda x: _MAIN_CAT_ORDER.get(x[0], 999))
-    special_cats.sort(key=lambda x: x[0])
-
-    result = regular_cats + [item for _, item in special_cats]
-    return result
-    
-    def _avg_rows(df_sub, n_months, df_credits=None):
-    """Return list of (main_cat, avg, [(subcat, avg)...]) sorted by avg desc."""
-    total_months_in_range = max(n_months, 1)
-
-    # חליפת מגן: וידאו שעמודת הקטגוריה הראשית קיימת בתתי-הטבלאות למניעת KeyError
-    if df_sub is not None and not df_sub.empty and "MainCategory" not in df_sub.columns:
-        df_sub["MainCategory"] = df_sub["Category"].apply(get_main_category)
-        
-    if df_credits is not None and not df_credits.empty:
-        if "MainCategory" not in df_credits.columns:
-            df_credits["MainCategory"] = df_credits["Category"].apply(get_main_category)
-
-    cred_by_cat = {}
-    if df_credits is not None and not df_credits.empty:
-        for cat, cgrp in df_credits.groupby("Category"):
-            cred_by_cat[cat] = cgrp["Amount_ILS"].sum()
-            
-    cred_by_main = {}
-    if df_credits is not None and not df_credits.empty:
-        for mc, cgrp in df_credits.groupby("MainCategory"):
-            cred_by_main[mc] = cgrp["Amount_ILS"].sum()
-            
-    result = []
-    for main_cat, grp in df_sub.groupby("MainCategory"):
-        gross_main = grp["Amount_ILS"].sum()
-        net_main   = gross_main - cred_by_main.get(main_cat, 0)
-        if net_main <= 0:
-            continue
-        main_avg = net_main / total_months_in_range
-        subcats = []
-        for cat, sub_grp in grp.groupby("Category"):
-            if cat != main_cat:
-                net_sub = sub_grp["Amount_ILS"].sum() - cred_by_cat.get(cat, 0)
-                if net_sub != 0:
-                    subcats.append((cat, net_sub / total_months_in_range))
-        subcats.sort(key=lambda x: _SUB_CAT_ORDER.get(x[0], 999))
-        result.append((main_cat, main_avg, subcats))
-
-    # Separate main categories into regular and special (end categories)
-    SPECIAL_CATS_ORDER = ["תרומות", "משיכה מכספומט", "לא מסווג"]
-    regular_cats = []
-    special_cats = []
-
-    for item in result:
-        main_cat = item[0]
-        if main_cat in SPECIAL_CATS_ORDER:
-            special_cats.append((SPECIAL_CATS_ORDER.index(main_cat), item))
-        else:
-            regular_cats.append(item)
-
-    regular_cats.sort(key=lambda x: _MAIN_CAT_ORDER.get(x[0], 999))
-    special_cats.sort(key=lambda x: x[0])
-
-    result = regular_cats + [item for _, item in special_cats]
-    return result
-    
     def _avg_rows_income(df_sub, n_months, filter_cats):
         result = []
         # חישוב ממוצע תקין - לחלק בכל החודשים בטווח, לא רק בחודשים עם נתונים
