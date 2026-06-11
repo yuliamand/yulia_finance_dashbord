@@ -652,29 +652,13 @@ def load_data():
     df.columns = df.columns.str.strip()
     if 'Date' in df.columns:
         df['Date'] = pd.to_datetime(df['Date'], dayfirst=True, errors='coerce')
-        df = df.sort_values(by='Date', ascending=False).reset_index(drop=True)
     if 'Amount_ILS' in df.columns:
         df['Amount_ILS'] = df['Amount_ILS'].astype(str).str.replace(r'[^\d\.-]', '', regex=True)
         df['Amount_ILS'] = pd.to_numeric(df['Amount_ILS'], errors='coerce').fillna(0)
     if 'Category' in df.columns:
         df['Category'] = df['Category'].fillna('לא סווג').astype(str).str.strip()
-    if 'Date' in df.columns and df['Date'].notna().any():
-        heb_months_map = {
-            1: "ינואר", 2: "פברואר", 3: "מרץ", 4: "אפריל", 5: "מאי", 6: "יוני",
-            7: "יולי", 8: "אוגוסט", 9: "ספטמבר", 10: "אוקטובר", 11: "נובמבר", 12: "דצמבר"
-        }
-        def generate_full_month(dt):
-            if pd.isna(dt):
-                return "לא ידוע"
-            day, month, year = dt.day, dt.month, dt.year
-            if day >= 10:
-                next_month = month + 1 if month < 12 else 1
-                next_year = year if month < 12 else year + 1
-            else:
-                next_month = month
-                next_year = year
-            return f"{heb_months_map.get(next_month, '?')} {str(next_year)[-2:]}"
-        df['Display_Month'] = df['Date'].apply(generate_full_month)
+    if 'Display_Month' in df.columns:
+        df['Display_Month'] = df['Display_Month'].astype(str).str.replace('.', '', regex=False).str.strip()
     return df
     
     df["Date"] = pd.to_datetime(df["Date"], format="%d/%m/%Y", errors="coerce")
@@ -1582,11 +1566,7 @@ with tab_dashboard:
                             _orig_amount = round(float(df_display_reset.at[idx, "סכום"]), 2)
 
                             # Find matching row in master data
-                            mask_row = (
-                                (pd.to_datetime(_df_master_now["Date"], errors='coerce').dt.strftime('%d/%m/%Y') == _orig_date_str)
-                                & (_df_master_now["Merchant"].astype(str).str.strip() == _orig_merchant)
-                                & (_df_master_now["Amount_ILS"].round(2) == _orig_amount)
-                            )
+                            mask_row = _df_master_now.index == idx
 
                             if mask_row.any():
                                 if date_changed.iloc[idx]:
@@ -1621,11 +1601,8 @@ with tab_dashboard:
                                 _overrides_now[_key] = {"category": existing, "type": new_type}
                             else:
                                 _overrides_now[_key] = {"type": new_type}
-                            mask_row = (
-                                (pd.to_datetime(_df_master_now["Date"], errors='coerce').dt.strftime('%d/%m/%Y') == _tdate_str(row["תאריך"]))
-                                & (_df_master_now["Merchant"].astype(str).str.strip() == str(row["בית עסק"]).strip())
-                                & (_df_master_now["Amount_ILS"].round(2) == round(float(row["סכום"]), 2))
-                            )
+                            mask_row = _df_master_now.index == idx
+                            
                             _df_master_now.loc[mask_row, "Type"] = new_type
                         _df_master_now.to_csv(DATA_FILE, index=False, encoding="utf-8-sig")
                         save_overrides(_overrides_now)
@@ -1760,13 +1737,8 @@ with tab_dashboard:
                             if mask_merchant.sum() == 0:
                                 errors.append(f"לא נמצאו שורות עבור: {m}"); continue
 
-                            if scope == "עסקה זו בלבד":
-                                mask_row = mask_merchant & (pd.to_datetime(df_master["Date"], errors='coerce').dt.strftime('%d/%m/%Y') == date_str) & \
-                                           (df_master["Amount_ILS"].round(2) == amount)
-                                if mask_row.sum() == 0:
-                                    mask_row = mask_merchant & (pd.to_datetime(df_master["Date"], errors='coerce').dt.strftime('%d/%m/%Y') == date_str)
-                                if mask_row.sum() == 0:
-                                    mask_row = df_master.index == df_master[mask_merchant].index[0]
+                           if scope == "עסקה זו בלבד":
+                                mask_row = df_master.index == idx
                                 df_master.loc[mask_row, "Category"] = nc
                                 for _, row in df_master[mask_row].iterrows():
                                     key = override_key(row["Date"], str(row["Merchant"]), row["Amount_ILS"])
