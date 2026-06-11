@@ -496,9 +496,19 @@ _SUB_CAT_ORDER = _build_sub_cat_order()
 # ══════════════════════════════════════════════════════════════════════════════
 
 def month_sort_key(display_month):
+    """ פונקציית מיון חסינה שיודעת לטפל גם בשנה מקוצרת '26' וגם מלאה '2026' """
+    if not display_month or pd.isna(display_month):
+        return (0, 0)
     parts = str(display_month).strip().split()
     if len(parts) == 2:
-        return (int(parts[1]), HEB_MONTH_ORDER.get(parts[0], 0))
+        try:
+            year_val = int(parts[1])
+            # אם השנה היא בפורמט של 2 ספרות (למשל 26), נהפוך אותה פנימית ל-2026 לצורך המיון
+            if year_val < 100:
+                year_val += 2000
+            return (year_val, HEB_MONTH_ORDER.get(parts[0], 0))
+        except (ValueError, TypeError):
+            return (0, 0)
     return (0, 0)
 
 
