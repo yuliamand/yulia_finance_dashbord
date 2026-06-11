@@ -1617,14 +1617,16 @@ with tab_dashboard:
                                     _overrides_now[_key] = {"type": new_type}
 
                     # ── שמירה ורענון מרוכזים (רק בסיום כל הבדיקות) ──────────────────────
+                   # ── שמירה ורענון מרוכזים (רק בסיום כל הבדיקות) ──────────────────────
                     if was_changed:
                         _df_master_now.to_csv(DATA_FILE, index=False, encoding="utf-8-sig")
                         save_overrides(_overrides_now)
                         
+                        # ניקוי ה-Cache וטעינה מחדש נכונה דרך הפונקציה החכמה של הדשבורד
                         if 'load_data' in globals() and hasattr(load_data, 'clear'):
                             load_data.clear()
                         
-                        st.session_state["df_all"] = pd.read_csv(DATA_FILE, encoding="utf-8-sig")
+                        st.session_state["df_all"] = load_data()
                         st.success("✅ השינויים נשמרו וסונכרנו בהצלחה!")
                         st.rerun(scope="app")
 
