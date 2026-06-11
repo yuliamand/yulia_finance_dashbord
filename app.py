@@ -648,24 +648,49 @@ def _tdate_str(val):
 def load_data():
     df = pd.read_csv(DATA_FILE, encoding="utf-8-sig", dtype={"Description": str})
     df.columns = df.columns.str.strip()
+    
     if 'Date' in df.columns:
-        df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
+        df['Date'] = pd.to_datetime(df['Date'], dayfirst=True, errors='coerce')
         df = df.sort_values(by='Date', ascending=False).reset_index(drop=True)
-    if 'Display_Month' in df.columns:
-        df['Display_Month'] = df['Display_Month'].astype(str).str.replace('.', '', regex=False).str.strip()
-        replacements = {
-            "ינו": "ינואר", "פבר": "פברואר", "מרצ": "מרץ", "אפר": "אפריל",
-            "מאי": "מאי", "יונ": "יוני", "יול": "יולי", "אוג": "אוגוסט",
-            "ספט": "ספטמבר", "אוק": "אוקטובר", "נוב": "נובמבר", "דצמ": "דצמבר"
-        }
-        for short_m, full_m in replacements.items():
-            df['Display_Month'] = df['Display_Month'].str.replace(rf'^{short_m}\b', full_m, regex=True)
+        
     if 'Amount_ILS' in df.columns:
         df['Amount_ILS'] = df['Amount_ILS'].astype(str).str.replace(r'[^\d\.-]', '', regex=True)
         df['Amount_ILS'] = pd.to_numeric(df['Amount_ILS'], errors='coerce').fillna(0)
+        
     if 'Category' in df.columns:
         df['Category'] = df['Category'].fillna('לא סווג').astype(str).str.strip()
+        
+    if 'Display_Month' in df.columns:
+        df['Display_Month'] = df['Display_Month'].astype(str).str.replace('.', '', regex=False).str.strip()
+        
     return df
+
+def get_clean_months_for_select(df):
+    if 'Display_Month' not in df.columns or 'Date' not in df.columns:
+        return []
+    
+    replacements = {
+        "ינו": "ינואר", "פבר": "פברואר", "מרצ": "מרץ", "אפר": "אפריל",
+        "מאי": "מאי", "יונ": "יוני", "יול": "יולי", "אוג": "אוגוסט",
+        "ספט": "ספטמבר", "אוק": "אוקטובר", "נוב": "נובמבר", "דצמ": "דצמבר"
+    }
+    
+    df_sorted = df.dropna(subset=['Date', 'Display_Month']).sort_values(by='Date', ascending=False)
+    unique_months = []
+    seen = set()
+    
+    for _, row in df_sorted.iterrows():
+        orig_m = row['Display_Month']
+        if orig_m not in seen:
+            seen.add(orig_m)
+            clean_m = orig_m
+            for short_m, full_m in replacements.items():
+                if clean_m.startswith(short_m):
+                    clean_m = clean_m.replace(short_m, full_m, 1)
+                    break
+            unique_months.append((clean_m, orig_m))
+            
+    return unique_months
     df["Date"] = pd.to_datetime(df["Date"], format="%d/%m/%Y", errors="coerce")
     df["Description"] = df["Description"].fillna("")
     df["Amount_ILS"] = pd.to_numeric(df["Amount_ILS"], errors="coerce").fillna(0)
