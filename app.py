@@ -1690,7 +1690,7 @@ with tab_dashboard:
                             mask = (
                                 (_df_master["Date"] == _tdate_str(r["תאריך"]))
                                 & (_df_master["Merchant"].astype(str).str.strip() == str(r["בית עסק"]).strip())
-                                & (_df_master["Amount_ILS"].apply(lambda x: round(float(x), 2)) == round(float(r["סכום"]), 2))
+                                & (_df_master["Amount_ILS"].round(2) == round(float(r["סכום"]), 2))
                             )
                             _df_master = _df_master[~mask]
                             _key = override_key(_tdate_str(r["תאריך"]), str(r["בית עסק"]), r["סכום"])
