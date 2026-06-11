@@ -1734,31 +1734,31 @@ with tab_dashboard:
                             nc = chg["new_cat"]
                             scope = scope_choices.get(chg_i, SCOPE_OPTS[0])
                             date_str = chg["date"]
-                            amount   = round(float(chg["amount"]), 2)
+                            amount = round(float(chg["amount"]), 2)
                             sortable_date = to_sortable(date_str)
                             mask_merchant = df_master["Merchant"].astype(str).str.strip() == m
                             if mask_merchant.sum() == 0:
-            errors.append(f"לא נמצאו שורות עבור {m}")
-            continue
-
-        if scope == "עסקה זו בלבד":
-            mask_row = mask_merchant & (df_master["Amount_ILS"].round(2) == round(float(amount), 2))
-            if mask_row.sum() == 0:
-                mask_row = df_master.index == df_master[mask_merchant].index[0]
-            df_master.loc[mask_row, "Category"] = nc
-            for _, row in df_master[mask_row].iterrows():
-                key = override_key(row["Date"], str(row["Merchant"]), row["Amount_ILS"])
-                existing = overrides.get(key)
-                overrides[key] = {**(existing if isinstance(existing, dict) else {}), "category": nc} if isinstance(existing, dict) else nc
-            summary.append(f"✓ {m}: {int(mask_row.sum())} עסקה → {nc}")
-
-        elif scope == "כל העסקאות של בית עסק זה בעבר":
-                                df_master.loc[mask_row, "Category"] = nc
-                                for _, row in df_master[mask_row].iterrows():
-                                    key = override_key(row["Date"], str(row["Merchant"]), row["Amount_ILS"])
-                                    existing = overrides.get(key)
-                                    overrides[key] = {**(existing if isinstance(existing, dict) else {}), "category": nc} if isinstance(existing, dict) else nc
-                                summary.append(f"✓ {m}: {int(mask_row.sum())} עסקאות עבר → {nc}")
+                                errors.append(f"לא נמצאו שורות עבור {m}")
+                                continue
+                                if scope == "עסקה זו בלבד":
+                                    mask_row = mask_merchant & (df_master["Amount_ILS"].round(2) == round(float(amount), 2))
+                                    if mask_row.sum() == 0:
+                                        mask_row = df_master.index == df_master[mask_merchant].index[0]
+                                    df_master.loc[mask_row, "Category"] = nc
+                                    for _, row in df_master[mask_row].iterrows():
+                                        key = override_key(row["Date"], str(row["Merchant"]), row["Amount_ILS"])
+                                        existing = overrides.get(key)
+                                        overrides[key] = {**(existing if isinstance(existing, dict) else {}), "category": nc} if isinstance(existing, dict) else nc
+                                    summary.append(f"✓ {m}: {int(mask_row.sum())} עסקה → {nc}")    
+                            elif scope == "כל העסקאות של בית עסק זה בעבר":
+                                    mask_row = mask_merchant & (df_master["_sort_date"] <= sortable_date)
+                                    df_master.loc[mask_row, "Category"] = nc
+                                    for _, row in df_master[mask_row].iterrows():
+                                        key = override_key(row["Date"], str(row["Merchant"]), row["Amount_ILS"])
+                                        existing = overrides.get(key)
+                                        overrides[key] = {**(existing if isinstance(existing, dict) else {}), "category": nc} if isinstance(existing, dict) else nc
+                                    summary.append(f"✓ {m}: {int(mask_row.sum())} עסקאות עבר → {nc}")
+            
 
                             elif scope == "כל העסקאות של בית עסק זה בעתיד":
                                 mask_row = mask_merchant & (df_master["_sort_date"] >= sortable_date)
